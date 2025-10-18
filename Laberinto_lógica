@@ -1,0 +1,239 @@
+#include <ShiftRegister74HC595.h>
+
+const int numberOfShiftRegisters  = 1;
+int serialDataPin = 30;
+int clockPin = 28;
+int latchPin = 29;
+
+ShiftRegister74HC595<numberOfShiftRegisters > sr(serialDataPin, clockPin, latchPin);
+
+struct USonic 
+{
+  int trig;
+  int echo;
+  float lastValidReading;
+};
+
+USonic US_FRONT  = {53, 52, 400.0};
+USonic US_RIGHT  = {27, 26, 400.0};
+USonic US_LEFT   = {24, 25, 400.0};
+
+const float WALL_CM = 5.0;
+const int BLACK_THRESHOLD = 250;
+const int US_SAMPLES = 3;
+const unsigned long STOP_BRAKE_MS = 80;
+
+
+const float MIN_VALID_READING = 2.0;
+const float MAX_CHANGE_RATE = 100.0;
+const int MAX_RETRIES = 3;
+
+
+float readDistanceCM(USonic& u);
+float readDistanceWithRetry(USonic& u);
+float medianOf3(float a, float b, float c);
+bool isValidReading(float reading, float lastReading);
+
+bool isPathFree(float d_cm);
+bool isBlackTile();
+
+// -------------------- SETUP --------------------
+void setup() 
+{
+  Serial.begin(115200);
+  sr.setAllLow();
+
+  pinMode(US_FRONT.trig, OUTPUT);
+  pinMode(US_FRONT.echo, INPUT);
+  pinMode(US_RIGHT.trig, OUTPUT);
+  pinMode(US_RIGHT.echo, INPUT);
+  pinMode(US_LEFT.trig, OUTPUT);
+  pinMode(US_LEFT.echo, INPUT);
+
+  delay(200);
+  Serial.println(F("Robot listo."));
+}
+
+
+void loop() 
+{
+  float dF = readDistanceWithRetry(US_FRONT);
+  float dR = readDistanceWithRetry(US_RIGHT);
+  float dL = readDistanceWithRetry(US_LEFT);
+
+  bool frontFree  = isPathFree(dF);
+  bool rightFree  = isPathFree(dR);
+  bool leftFree   = isPathFree(dL);
+
+  delay(50);
+
+  Serial.print("Front: "); Serial.print(dF); Serial.print(" cm - ");
+  Serial.println(frontFree ? "FREE" : "BLOCKED");
+  Serial.print("Right: "); Serial.print(dR); Serial.print(" cm - ");
+  Serial.println(rightFree ? "FREE" : "BLOCKED");
+  Serial.print("Left: "); Serial.print(dL); Serial.print(" cm - ");
+  Serial.println(leftFree ? "FREE" : "BLOCKED");
+  Serial.println("---");
+
+  // 4) Tres tapados o casilla negra -> 180°
+  if ((!frontFree && !rightFree && !leftFree)) 
+  {
+    Serial.println(F("Regla 4: deadEnd -> giro 180°"));
+    //turn180();
+    //moveForward();
+  }
+
+  // 1) Si derecha libre: girar derecha y avanzar
+  else if (rightFree && leftFree && frontFree)
+  {
+    Serial.println("Adelante");
+    //moveForward(0.5);
+    isBlackTile();
+  }
+
+  else if (rightFree && leftFree && !frontFree)
+  {
+    //moveRight();
+    //moveForward(0.5);
+    isBlackTile();
+  }
+
+  else if (rightFree && frontFree && !leftFree) 
+  {
+    Serial.println(F("Regla 1: derecha libre -> giro derecha + avanzar"));
+    //turnRight();
+    //moveForward(0.5);
+    isBlackTile();
+  }
+
+  // 2) Frente libre con pared a la derecha: avanzar
+  else if (frontFree && leftFree && !rightFree) 
+  {
+    Serial.println(F("Regla 2: frente libre con pared a la derecha -> avanzar"));
+    //moveForward(0.5);
+    isBlackTile();
+  }
+
+  else if (!frontFree && rightFree && !leftFree)
+  {
+    //moveRight();
+    //moveForward(0.5);
+    isBlackTile();
+  }
+
+  // 3) Pared enfrente: girar izquierda y avanzar
+  else if (!frontFree && !rightFree && leftFree) 
+  {
+    Serial.println(F("Regla 3: pared enfrente -> giro izquierda + avanzar"));
+    //turnLeft();
+    //moveForward();
+    isBlackTile();
+  }
+}
+
+
+float readDistanceWithRetry(USonic& u) 
+{
+  for (int attempt = 0; attempt < MAX_RETRIES; attempt++) 
+  {
+    float reading = readDistanceCM(u);
+    
+    if (isValidReading(reading, u.lastValidReading)) 
+    {
+      u.lastValidReading = reading;
+      return reading;
+    }
+    
+    Serial.print(F("⚠ Bad reading detected: "));
+    Serial.print(reading);
+    Serial.print(F(" cm (attempt "));
+    Serial.print(attempt + 1);
+    Serial.println(F(")"));
+    
+    delay(50);
+  }
+  
+  Serial.println(F("Using last valid reading"));
+  return u.lastValidReading;
+}
+
+// Validate if a reading is reasonable
+bool isValidReading(float reading, float lastReading) 
+{
+  if (reading < MIN_VALID_READING && reading != 0) 
+  {
+    return false;
+  }
+  
+  if (reading == 0) 
+  {
+    return false;
+  }
+  
+  float change = abs(reading - lastReading);
+  if (change > MAX_CHANGE_RATE && lastReading != 400.0) 
+  {
+    return false;
+  }
+  
+  return true;
+}
+
+float readDistanceCM(USonic& u) 
+{
+  delay(250);
+  
+  float r1, r2, r3;
+  // 1
+  digitalWrite(u.trig, LOW); delayMicroseconds(2);
+  digitalWrite(u.trig, HIGH); delayMicroseconds(10);
+  digitalWrite(u.trig, LOW);
+  r1 = pulseIn(u.echo, HIGH, 30000UL) * 0.0343 / 2.0;  
+  delay(10);
+  // 2
+  digitalWrite(u.trig, LOW); delayMicroseconds(2);
+  digitalWrite(u.trig, HIGH); delayMicroseconds(10);
+  digitalWrite(u.trig, LOW);
+  r2 = pulseIn(u.echo, HIGH, 30000UL) * 0.0343 / 2.0;
+  delay(10);
+  // 3
+  digitalWrite(u.trig, LOW); delayMicroseconds(2);
+  digitalWrite(u.trig, HIGH); delayMicroseconds(10);
+  digitalWrite(u.trig, LOW);
+  r3 = pulseIn(u.echo, HIGH, 30000UL) * 0.0343 / 2.0;
+  delay(5);
+
+  float m = medianOf3(r1, r2, r3);
+  
+  if (m > 400) m = 400; 
+
+  return m;
+}
+
+float medianOf3(float a, float b, float c) {
+  float x = a, y = b, z = c;
+  if (x > y) { float t = x; x = y; y = t; }
+  if (y > z) { float t = y; y = z; z = t; }
+  if (x > y) { float t = x; x = y; y = t; }
+  return y; 
+}
+
+bool isPathFree(float d_cm) 
+{
+  delay(250);
+  return d_cm > WALL_CM;
+}
+
+bool isBlackTile() 
+{
+  if (0 < BLACK_THRESHOLD)
+  {
+    //moveForward(0.5);
+  }
+
+  else
+  {
+    //turn180()
+    //moveForward(0.5)
+  }
+}
