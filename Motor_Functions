@@ -1,0 +1,184 @@
+
+const int leftFront_ENA = 4;
+const int leftFront_IN1 = 3;
+const int leftFront_IN2 = 2;
+
+const int leftRear_ENB = 8;
+const int leftRear_IN3 = 10;
+const int leftRear_IN4 = 9;
+
+const int rightFront_ENA = 5;
+const int rightFront_IN1 = 6;
+const int rightFront_IN2 = 7;
+
+const int rightRear_ENB = 46;
+const int rightRear_IN3 = 45;
+const int rightRear_IN4 = 44;
+
+const int maxSpeed = 255;
+const int baseSpeed = 170;
+
+const int delayTimeU = 1350; 
+const int delayTimeT = 1500;
+
+
+void setup() 
+{
+  pinMode(leftFront_ENA, OUTPUT);
+  pinMode(leftFront_IN1, OUTPUT);
+  pinMode(leftFront_IN2, OUTPUT);
+  
+  pinMode(leftRear_ENB, OUTPUT);
+  pinMode(leftRear_IN3, OUTPUT);
+  pinMode(leftRear_IN4, OUTPUT);
+  
+  pinMode(rightFront_ENA, OUTPUT);
+  pinMode(rightFront_IN1, OUTPUT);
+  pinMode(rightFront_IN2, OUTPUT);
+  
+  pinMode(rightRear_ENB, OUTPUT);
+  pinMode(rightRear_IN3, OUTPUT);
+  pinMode(rightRear_IN4, OUTPUT);
+
+  stopAllMotors();
+}
+
+
+void moveForward(float Units)
+{
+  setRightMotors(baseSpeed);
+  setLeftMotors(baseSpeed - 25);
+  delay(Units * delayTimeU);
+  stopAllMotors();
+  setRightMotors(130); //110
+  delay(1800 * Units / 10); //1500
+  stopAllMotors();
+}
+
+void moveBackward(float Units)
+{
+  setRightMotors(-baseSpeed);
+  setLeftMotors(-baseSpeed + 25);
+  delay(Units * delayTimeU);
+  stopAllMotors();
+  setRightMotors(-130);
+  delay(2000 * Units / 10);
+  stopAllMotors();
+}
+
+void turnRight() 
+{
+  setLeftMotors(baseSpeed+90);
+  setRightMotors(-baseSpeed-15);
+  delay(delayTimeT);
+  stopAllMotors();
+}
+
+void turnLeft() 
+{
+  setLeftMotors(-baseSpeed-35);
+  setRightMotors(baseSpeed+35);
+  delay(delayTimeT);
+  stopAllMotors();
+}
+
+void turn180()
+{
+  setLeftMotors(-baseSpeed);
+  setRightMotors(baseSpeed);
+  delay(2 * delayTimeT);
+  stopAllMotors();
+}
+
+
+void setLeftMotors(float speed) 
+{
+  speed = constrain(speed, -maxSpeed, maxSpeed);
+  
+  
+  if (speed > 0) 
+  {
+    digitalWrite(leftFront_IN1, LOW);
+    digitalWrite(leftFront_IN2, HIGH);
+  } 
+  else if (speed < 0) 
+  {
+    digitalWrite(leftFront_IN1, HIGH);
+    digitalWrite(leftFront_IN2, LOW);
+  } 
+  else 
+  {
+    digitalWrite(leftFront_IN1, LOW);
+    digitalWrite(leftFront_IN2, LOW);
+  }
+  analogWrite(leftFront_ENA, abs(speed));
+  
+  if (speed > 0) 
+  {
+    digitalWrite(leftRear_IN3, LOW);
+    digitalWrite(leftRear_IN4, HIGH);
+  } 
+  else if (speed < 0) 
+  {
+    digitalWrite(leftRear_IN3, HIGH);
+    digitalWrite(leftRear_IN4, LOW);
+  } 
+  else 
+  {
+    digitalWrite(leftRear_IN3, LOW);
+    digitalWrite(leftRear_IN4, LOW);
+  }
+  analogWrite(leftRear_ENB, abs(speed));
+}
+
+void setRightMotors(float speed) 
+{
+  speed = constrain(speed, -maxSpeed, maxSpeed);
+  
+  if (speed > 0) 
+  {
+    digitalWrite(rightFront_IN1, HIGH);
+    digitalWrite(rightFront_IN2, LOW);
+  } 
+  else if (speed < 0) 
+  {
+    digitalWrite(rightFront_IN1, LOW);
+    digitalWrite(rightFront_IN2, HIGH);
+  } 
+  else 
+  {
+    digitalWrite(rightFront_IN1, LOW);
+    digitalWrite(rightFront_IN2, LOW);
+  }
+  analogWrite(rightFront_ENA, abs(speed));
+  
+  if (speed > 0) 
+  {
+    digitalWrite(rightRear_IN3, HIGH);
+    digitalWrite(rightRear_IN4, LOW);
+  } 
+  else if (speed < 0) 
+  {
+    digitalWrite(rightRear_IN3, LOW);
+    digitalWrite(rightRear_IN4, HIGH);
+  } 
+  else 
+  {
+    digitalWrite(rightRear_IN3, LOW);
+    digitalWrite(rightRear_IN4, LOW);
+  }
+  analogWrite(rightRear_ENB, abs(speed));
+}
+
+void stopAllMotors() 
+{
+  setLeftMotors(0);
+  setRightMotors(0);
+  delay(1000);
+}
+
+void loop()
+{
+  
+}
+
